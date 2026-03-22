@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <libnotify/notify.h>
+#define DEVDASH_VERSION "1.0.0"
 #include "theme.h"
 #include "panel.h"
 #include "scratchpad.h"
@@ -327,7 +328,7 @@ int main(int argc, char *argv[]) {
     /* Main window */
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     s_window = window;
-    gtk_window_set_title(GTK_WINDOW(window), "DevDash");
+    gtk_window_set_title(GTK_WINDOW(window), "DevDash v" DEVDASH_VERSION);
     gtk_window_set_default_size(GTK_WINDOW(window), 1100, 750);
     gtk_window_set_icon_name(GTK_WINDOW(window), "devdash");
     g_signal_connect(window, "delete-event", G_CALLBACK(on_delete_event), NULL);
@@ -351,8 +352,14 @@ int main(int argc, char *argv[]) {
     gtk_label_set_markup(GTK_LABEL(logo),
         "<span font='16' weight='bold' foreground='" CAT_BLUE "'>devdash</span>");
     gtk_widget_set_margin_top(logo, 16);
-    gtk_widget_set_margin_bottom(logo, 12);
+    gtk_widget_set_margin_bottom(logo, 2);
     gtk_box_pack_start(GTK_BOX(sidebar_box), logo, FALSE, FALSE, 0);
+
+    GtkWidget *version = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(version),
+        "<span font='9' foreground='" CAT_SURFACE2 "'>v" DEVDASH_VERSION "</span>");
+    gtk_widget_set_margin_bottom(version, 12);
+    gtk_box_pack_start(GTK_BOX(sidebar_box), version, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(sidebar_box),
         gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 0);

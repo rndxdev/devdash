@@ -13,11 +13,7 @@ static void on_child_exited(VteTerminal *term, gint status, gpointer data) {
     (void)status; (void)data;
 
     char *home = (char *)g_get_home_dir();
-    char shelloveu[512];
-    snprintf(shelloveu, sizeof(shelloveu), "%s/projects/CS426/shelloveu/shelloveu", home);
-
-    char *shell_bin = g_file_test(shelloveu, G_FILE_TEST_IS_EXECUTABLE)
-        ? shelloveu : (char *)g_getenv("SHELL");
+    char *shell_bin = (char *)g_getenv("SHELL");
     if (!shell_bin) shell_bin = "/bin/bash";
 
     char *argv[] = { shell_bin, NULL };
@@ -52,11 +48,8 @@ GtkWidget *shell_create(void) {
     gtk_box_pack_start(GTK_BOX(hbox), title, FALSE, FALSE, 0);
 
     /* Check which shell we're using */
-    char shelloveu[512];
-    snprintf(shelloveu, sizeof(shelloveu), "%s/projects/CS426/shelloveu/shelloveu",
-             g_get_home_dir());
-    const char *shell_name = g_file_test(shelloveu, G_FILE_TEST_IS_EXECUTABLE)
-        ? "shelloveu" : "bash";
+    const char *shell_env = g_getenv("SHELL");
+    const char *shell_name = shell_env ? strrchr(shell_env, '/') ? strrchr(shell_env, '/') + 1 : shell_env : "bash";
 
     char *sub = markup_fmt(
         "<span font='11' foreground='" CAT_SUBTEXT0 "'>Running %s</span>", shell_name);
@@ -112,12 +105,8 @@ GtkWidget *shell_create(void) {
     char *home = (char *)g_get_home_dir();
     char *shell_bin = NULL;
 
-    if (g_file_test(shelloveu, G_FILE_TEST_IS_EXECUTABLE))
-        shell_bin = shelloveu;
-    else {
-        shell_bin = (char *)g_getenv("SHELL");
-        if (!shell_bin) shell_bin = "/bin/bash";
-    }
+    shell_bin = (char *)g_getenv("SHELL");
+    if (!shell_bin) shell_bin = "/bin/bash";
 
     char *argv[] = { shell_bin, NULL };
 

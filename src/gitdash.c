@@ -33,7 +33,6 @@ static void load_config(void) {
         if (f) {
             fprintf(f, "%s/projects/devdash\n", home);
             fprintf(f, "%s/projects/battmon\n", home);
-            fprintf(f, "%s/projects/CS426\n", home);
             fclose(f);
         }
         f = fopen(s_conf_path, "r");
