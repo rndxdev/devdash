@@ -1,0 +1,4 @@
+build/
+devdash
+*.o
+*.d
