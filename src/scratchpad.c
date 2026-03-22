@@ -91,12 +91,16 @@ GtkWidget *scratchpad_create(void) {
     /* Monospace font via CSS */
     GtkCssProvider *css = gtk_css_provider_new();
     gtk_css_provider_load_from_data(css,
-        "#scratchpad-text {"
+        "#scratchpad-text, #scratchpad-text text {"
         "  font-family: monospace;"
         "  font-size: 13px;"
         "  background-color: " CAT_SURFACE0 ";"
         "  color: " CAT_TEXT ";"
         "  caret-color: " CAT_BLUE ";"
+        "}"
+        "#scratchpad-text text selection {"
+        "  background-color: " CAT_SURFACE2 ";"
+        "  color: " CAT_TEXT ";"
         "}", -1, NULL);
     gtk_style_context_add_provider(
         gtk_widget_get_style_context(tv),
@@ -113,10 +117,12 @@ GtkWidget *scratchpad_create(void) {
 
     GtkWidget *btn_save = gtk_button_new_with_label("Save");
     gtk_widget_set_name(btn_save, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_save), "action-btn");
     g_signal_connect(btn_save, "clicked", G_CALLBACK(on_save_clicked), NULL);
 
     GtkWidget *btn_clear = gtk_button_new_with_label("Clear");
     gtk_widget_set_name(btn_clear, "danger-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_clear), "danger-btn");
     g_signal_connect(btn_clear, "clicked", G_CALLBACK(on_clear_clicked), NULL);
 
     gtk_box_pack_start(GTK_BOX(hbox), btn_save, FALSE, FALSE, 0);

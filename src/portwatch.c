@@ -156,10 +156,12 @@ GtkWidget *portwatch_create(void) {
 
     GtkWidget *btn_refresh = gtk_button_new_with_label("Refresh");
     gtk_widget_set_name(btn_refresh, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_refresh), "action-btn");
     g_signal_connect_swapped(btn_refresh, "clicked", G_CALLBACK(do_refresh), NULL);
 
     GtkWidget *btn_kill = gtk_button_new_with_label("Kill");
     gtk_widget_set_name(btn_kill, "danger-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_kill), "danger-btn");
     g_signal_connect(btn_kill, "clicked", G_CALLBACK(on_kill_clicked), NULL);
 
     gtk_box_pack_start(GTK_BOX(hbox), btn_refresh, FALSE, FALSE, 0);

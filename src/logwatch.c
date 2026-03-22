@@ -214,10 +214,14 @@ GtkWidget *logwatch_create(void) {
 
     GtkCssProvider *css = gtk_css_provider_new();
     gtk_css_provider_load_from_data(css,
-        "#log-text {"
+        "#log-text, #log-text text {"
         "  font-family: monospace;"
         "  font-size: 11px;"
         "  background-color: " CAT_CRUST ";"
+        "  color: " CAT_TEXT ";"
+        "}"
+        "#log-text text selection {"
+        "  background-color: " CAT_SURFACE1 ";"
         "  color: " CAT_TEXT ";"
         "}", -1, NULL);
     gtk_style_context_add_provider(
@@ -241,11 +245,11 @@ GtkWidget *logwatch_create(void) {
     gtk_text_tag_table_add(tt, s_tag_info);
 
     s_tag_debug = gtk_text_tag_new("debug");
-    g_object_set(s_tag_debug, "foreground", CAT_OVERLAY0, NULL);
+    g_object_set(s_tag_debug, "foreground", CAT_OVERLAY2, NULL);
     gtk_text_tag_table_add(tt, s_tag_debug);
 
     s_tag_normal = gtk_text_tag_new("normal");
-    g_object_set(s_tag_normal, "foreground", CAT_SUBTEXT0, NULL);
+    g_object_set(s_tag_normal, "foreground", CAT_SUBTEXT1, NULL);
     gtk_text_tag_table_add(tt, s_tag_normal);
 
     GtkWidget *sw = make_scrolled(s_textview);
@@ -256,6 +260,7 @@ GtkWidget *logwatch_create(void) {
     gtk_widget_set_halign(hbox, GTK_ALIGN_END);
     GtkWidget *btn = gtk_button_new_with_label("Clear");
     gtk_widget_set_name(btn, "danger-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn), "danger-btn");
     g_signal_connect(btn, "clicked", G_CALLBACK(on_clear_clicked), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);

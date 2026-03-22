@@ -64,7 +64,7 @@ static void rebuild_list(void) {
         snprintf(idx_str, sizeof(idx_str), "%d", i);
 
         char *m = markup_fmt(
-            "<span font='10' foreground='" CAT_OVERLAY0 "'>#%s</span>  "
+            "<span font='10' foreground='" CAT_OVERLAY2 "'>#%s</span>  "
             "<span font='11' foreground='" CAT_TEXT "'>%s</span>",
             idx_str, escaped);
 

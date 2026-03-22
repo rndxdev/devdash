@@ -159,14 +159,17 @@ GtkWidget *sshdash_create(void) {
 
     GtkWidget *btn_connect = gtk_button_new_with_label("Connect");
     gtk_widget_set_name(btn_connect, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_connect), "action-btn");
     g_signal_connect(btn_connect, "clicked", G_CALLBACK(on_connect_clicked), NULL);
 
     GtkWidget *btn_edit = gtk_button_new_with_label("Edit Config");
     gtk_widget_set_name(btn_edit, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_edit), "action-btn");
     g_signal_connect(btn_edit, "clicked", G_CALLBACK(on_edit_clicked), NULL);
 
     GtkWidget *btn_refresh = gtk_button_new_with_label("Refresh");
     gtk_widget_set_name(btn_refresh, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_refresh), "action-btn");
     g_signal_connect_swapped(btn_refresh, "clicked", G_CALLBACK(do_refresh), NULL);
 
     gtk_box_pack_start(GTK_BOX(hbox), btn_connect, FALSE, FALSE, 0);

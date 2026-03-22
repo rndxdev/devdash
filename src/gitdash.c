@@ -73,7 +73,7 @@ static GtkWidget *build_project_card(Project *p) {
         /* Not a git repo */
         char *m = markup_fmt(
             "<span font='13' weight='bold' foreground='" CAT_TEXT "'>%s</span>"
-            "  <span font='11' foreground='" CAT_OVERLAY0 "'>not a git repo</span>",
+            "  <span font='11' foreground='" CAT_OVERLAY2 "'>not a git repo</span>",
             p->name);
         gtk_box_pack_start(GTK_BOX(vbox), make_label(m), FALSE, FALSE, 0);
         free(m);
@@ -164,6 +164,7 @@ GtkWidget *gitdash_create(void) {
     gtk_widget_set_halign(hbox, GTK_ALIGN_END);
     GtkWidget *btn = gtk_button_new_with_label("Refresh");
     gtk_widget_set_name(btn, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn), "action-btn");
     g_signal_connect_swapped(btn, "clicked", G_CALLBACK(do_refresh), NULL);
     gtk_box_pack_start(GTK_BOX(hbox), btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);

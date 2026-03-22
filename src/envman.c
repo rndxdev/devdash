@@ -118,10 +118,12 @@ GtkWidget *envman_create(void) {
 
     GtkWidget *btn_copy = gtk_button_new_with_label("Copy as export");
     gtk_widget_set_name(btn_copy, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_copy), "action-btn");
     g_signal_connect(btn_copy, "clicked", G_CALLBACK(on_copy_clicked), NULL);
 
     GtkWidget *btn_refresh = gtk_button_new_with_label("Refresh");
     gtk_widget_set_name(btn_refresh, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_refresh), "action-btn");
     g_signal_connect_swapped(btn_refresh, "clicked", G_CALLBACK(do_refresh), NULL);
 
     gtk_box_pack_start(GTK_BOX(hbox), btn_copy, FALSE, FALSE, 0);
