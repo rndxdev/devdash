@@ -9,6 +9,7 @@
 #define CONF_NAME "gitdash.conf"
 
 static GtkWidget *s_container;
+static GtkWidget *s_subtitle;
 static char s_conf_path[512];
 
 typedef struct {
@@ -18,6 +19,8 @@ typedef struct {
 
 static Project s_projects[MAX_PROJECTS];
 static int s_nprojects;
+
+static void do_refresh(void);
 
 static void load_config(void) {
     const char *home = g_get_home_dir();
@@ -55,13 +58,84 @@ static void load_config(void) {
     fclose(f);
 }
 
-static GtkWidget *build_project_card(Project *p) {
+static void save_config(void) {
+    FILE *f = fopen(s_conf_path, "w");
+    if (!f) return;
+    for (int i = 0; i < s_nprojects; i++)
+        fprintf(f, "%s\n", s_projects[i].path);
+    fclose(f);
+}
+
+static void update_subtitle(void) {
+    if (!s_subtitle) return;
+    char *sub = markup_fmt(
+        "<span font='11' foreground='" CAT_SUBTEXT0 "'>Tracking %d project%s — edit ~/.config/devdash/%s</span>",
+        s_nprojects, s_nprojects == 1 ? "" : "s", CONF_NAME);
+    gtk_label_set_markup(GTK_LABEL(s_subtitle), sub);
+    free(sub);
+}
+
+static void on_remove_clicked(GtkButton *btn, gpointer data) {
+    (void)btn;
+    int idx = GPOINTER_TO_INT(data);
+    if (idx < 0 || idx >= s_nprojects) return;
+
+    /* Shift remaining projects down */
+    for (int i = idx; i < s_nprojects - 1; i++)
+        s_projects[i] = s_projects[i + 1];
+    s_nprojects--;
+
+    save_config();
+    update_subtitle();
+    do_refresh();
+}
+
+static void on_add_clicked(GtkButton *btn, gpointer data) {
+    (void)data;
+    GtkWidget *dialog = gtk_file_chooser_dialog_new(
+        "Select Git Project Folder",
+        GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(btn))),
+        GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+        "_Cancel", GTK_RESPONSE_CANCEL,
+        "_Add", GTK_RESPONSE_ACCEPT,
+        NULL);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char *folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        if (folder && s_nprojects < MAX_PROJECTS) {
+            /* Check for duplicates */
+            int dup = 0;
+            for (int i = 0; i < s_nprojects; i++) {
+                if (strcmp(s_projects[i].path, folder) == 0) { dup = 1; break; }
+            }
+            if (!dup) {
+                strncpy(s_projects[s_nprojects].path, folder,
+                        sizeof(s_projects[0].path) - 1);
+                const char *slash = strrchr(folder, '/');
+                strncpy(s_projects[s_nprojects].name, slash ? slash + 1 : folder,
+                        sizeof(s_projects[0].name) - 1);
+                s_nprojects++;
+                save_config();
+                update_subtitle();
+                do_refresh();
+            }
+        }
+        g_free(folder);
+    }
+    gtk_widget_destroy(dialog);
+}
+
+static GtkWidget *build_project_card(Project *p, int idx) {
     GtkWidget *frame = gtk_frame_new(NULL);
     gtk_widget_set_name(frame, "project-card");
 
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 10);
     gtk_container_add(GTK_CONTAINER(frame), vbox);
+
+    /* Header row with remove button */
+    GtkWidget *hdr = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_box_pack_start(GTK_BOX(vbox), hdr, FALSE, FALSE, 0);
 
     /* Branch */
     char cmd[600];
@@ -74,9 +148,16 @@ static GtkWidget *build_project_card(Project *p) {
             "<span font='13' weight='bold' foreground='" CAT_TEXT "'>%s</span>"
             "  <span font='11' foreground='" CAT_OVERLAY2 "'>not a git repo</span>",
             p->name);
-        gtk_box_pack_start(GTK_BOX(vbox), make_label(m), FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(hdr), make_label(m), TRUE, TRUE, 0);
         free(m);
         free(branch);
+
+        GtkWidget *rm_btn = gtk_button_new_with_label("Remove");
+        gtk_widget_set_name(rm_btn, "remove-btn");
+        g_signal_connect(rm_btn, "clicked", G_CALLBACK(on_remove_clicked),
+                         GINT_TO_POINTER(idx));
+        gtk_box_pack_end(GTK_BOX(hdr), rm_btn, FALSE, FALSE, 0);
+
         return frame;
     }
 
@@ -98,9 +179,15 @@ static GtkWidget *build_project_card(Project *p) {
         "  <span font='12' foreground='" CAT_BLUE "'>%s</span>"
         "  <span font='11' foreground='%s'>%s%s</span>",
         p->name, branch, dot_color, status_text, changes_info);
-    gtk_box_pack_start(GTK_BOX(vbox), make_label(header), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(hdr), make_label(header), TRUE, TRUE, 0);
     free(header);
     free(branch);
+
+    GtkWidget *rm_btn = gtk_button_new_with_label("Remove");
+    gtk_widget_set_name(rm_btn, "remove-btn");
+    g_signal_connect(rm_btn, "clicked", G_CALLBACK(on_remove_clicked),
+                     GINT_TO_POINTER(idx));
+    gtk_box_pack_end(GTK_BOX(hdr), rm_btn, FALSE, FALSE, 0);
 
     /* Recent commits */
     snprintf(cmd, sizeof(cmd),
@@ -132,7 +219,7 @@ static void do_refresh(void) {
     g_list_free(children);
 
     for (int i = 0; i < s_nprojects; i++) {
-        GtkWidget *card = build_project_card(&s_projects[i]);
+        GtkWidget *card = build_project_card(&s_projects[i], i);
         gtk_box_pack_start(GTK_BOX(s_container), card, FALSE, FALSE, 4);
     }
     gtk_widget_show_all(s_container);
@@ -149,18 +236,26 @@ GtkWidget *gitdash_create(void) {
     gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
 
     char *sub = markup_fmt(
-        "<span font='11' foreground='" CAT_SUBTEXT0 "'>Tracking %d projects — edit ~/.config/devdash/%s</span>",
-        s_nprojects, CONF_NAME);
-    gtk_box_pack_start(GTK_BOX(vbox), make_label(sub), FALSE, FALSE, 0);
+        "<span font='11' foreground='" CAT_SUBTEXT0 "'>Tracking %d project%s — edit ~/.config/devdash/%s</span>",
+        s_nprojects, s_nprojects == 1 ? "" : "s", CONF_NAME);
+    s_subtitle = make_label(sub);
+    gtk_box_pack_start(GTK_BOX(vbox), s_subtitle, FALSE, FALSE, 0);
     free(sub);
 
     s_container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
     GtkWidget *sw = make_scrolled(s_container);
     gtk_box_pack_start(GTK_BOX(vbox), sw, TRUE, TRUE, 4);
 
-    /* Refresh button */
+    /* Action buttons */
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_halign(hbox, GTK_ALIGN_END);
+
+    GtkWidget *add_btn = gtk_button_new_with_label("Add Project");
+    gtk_widget_set_name(add_btn, "action-btn");
+    gtk_style_context_add_class(gtk_widget_get_style_context(add_btn), "action-btn");
+    g_signal_connect(add_btn, "clicked", G_CALLBACK(on_add_clicked), NULL);
+    gtk_box_pack_start(GTK_BOX(hbox), add_btn, FALSE, FALSE, 0);
+
     GtkWidget *btn = gtk_button_new_with_label("Refresh");
     gtk_widget_set_name(btn, "action-btn");
     gtk_style_context_add_class(gtk_widget_get_style_context(btn), "action-btn");
