@@ -11,6 +11,7 @@
 static GtkWidget *s_container;
 static GtkWidget *s_subtitle;
 static char s_conf_path[512];
+static char s_editor[128];
 
 typedef struct {
     char path[512];
@@ -21,6 +22,26 @@ static Project s_projects[MAX_PROJECTS];
 static int s_nprojects;
 
 static void do_refresh(void);
+
+/* Detect the best available editor */
+static void detect_editor(void) {
+    static const char *candidates[] = {
+        "code", "codium", "zed", "subl", "atom", "kate", "gedit", "nvim", "vim", NULL
+    };
+    for (int i = 0; candidates[i]; i++) {
+        char cmd[64];
+        snprintf(cmd, sizeof(cmd), "which %s 2>/dev/null", candidates[i]);
+        char *out = run_cmd(cmd);
+        if (out && out[0]) {
+            trim_inplace(out);
+            strncpy(s_editor, candidates[i], sizeof(s_editor) - 1);
+            free(out);
+            return;
+        }
+        free(out);
+    }
+    s_editor[0] = '\0';
+}
 
 static void load_config(void) {
     const char *home = g_get_home_dir();
@@ -80,7 +101,6 @@ static void on_remove_clicked(GtkButton *btn, gpointer data) {
     int idx = GPOINTER_TO_INT(data);
     if (idx < 0 || idx >= s_nprojects) return;
 
-    /* Shift remaining projects down */
     for (int i = idx; i < s_nprojects - 1; i++)
         s_projects[i] = s_projects[i + 1];
     s_nprojects--;
@@ -103,7 +123,6 @@ static void on_add_clicked(GtkButton *btn, gpointer data) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         if (folder && s_nprojects < MAX_PROJECTS) {
-            /* Check for duplicates */
             int dup = 0;
             for (int i = 0; i < s_nprojects; i++) {
                 if (strcmp(s_projects[i].path, folder) == 0) { dup = 1; break; }
@@ -125,6 +144,78 @@ static void on_add_clicked(GtkButton *btn, gpointer data) {
     gtk_widget_destroy(dialog);
 }
 
+/* Quick action callbacks — path is stored as g_object data on the button */
+static void on_pull_clicked(GtkButton *btn, gpointer data) {
+    (void)data;
+    const char *path = g_object_get_data(G_OBJECT(btn), "project-path");
+    if (!path) return;
+    char cmd[700];
+    snprintf(cmd, sizeof(cmd), "git -C '%s' pull --ff-only 2>&1", path);
+    char *out = run_cmd(cmd);
+    free(out);
+    do_refresh();
+}
+
+static void on_push_clicked(GtkButton *btn, gpointer data) {
+    (void)data;
+    const char *path = g_object_get_data(G_OBJECT(btn), "project-path");
+    if (!path) return;
+    char cmd[700];
+    snprintf(cmd, sizeof(cmd), "git -C '%s' push 2>&1", path);
+    char *out = run_cmd(cmd);
+    free(out);
+    do_refresh();
+}
+
+static void on_editor_clicked(GtkButton *btn, gpointer data) {
+    (void)data;
+    const char *path = g_object_get_data(G_OBJECT(btn), "project-path");
+    if (!path || !s_editor[0]) return;
+    char cmd[700];
+    snprintf(cmd, sizeof(cmd), "%s '%s' &", s_editor, path);
+    int ret = system(cmd);
+    (void)ret;
+}
+
+static void on_terminal_clicked(GtkButton *btn, gpointer data) {
+    (void)data;
+    const char *path = g_object_get_data(G_OBJECT(btn), "project-path");
+    if (!path) return;
+    /* Try common terminal emulators */
+    static const char *terms[] = {
+        "x-terminal-emulator", "gnome-terminal", "konsole",
+        "xfce4-terminal", "alacritty", "kitty", "xterm", NULL
+    };
+    for (int i = 0; terms[i]; i++) {
+        char check[128];
+        snprintf(check, sizeof(check), "which %s 2>/dev/null", terms[i]);
+        char *out = run_cmd(check);
+        if (out && out[0]) {
+            free(out);
+            char cmd[700];
+            if (strcmp(terms[i], "gnome-terminal") == 0)
+                snprintf(cmd, sizeof(cmd), "gnome-terminal --working-directory='%s' &", path);
+            else if (strcmp(terms[i], "konsole") == 0)
+                snprintf(cmd, sizeof(cmd), "konsole --workdir '%s' &", path);
+            else
+                snprintf(cmd, sizeof(cmd), "cd '%s' && %s &", path, terms[i]);
+            int ret = system(cmd);
+            (void)ret;
+            return;
+        }
+        free(out);
+    }
+}
+
+static GtkWidget *make_card_btn(const char *label, const char *name,
+                                const char *path, GCallback cb) {
+    GtkWidget *b = gtk_button_new_with_label(label);
+    gtk_widget_set_name(b, name);
+    g_object_set_data_full(G_OBJECT(b), "project-path", g_strdup(path), g_free);
+    g_signal_connect(b, "clicked", cb, NULL);
+    return b;
+}
+
 static GtkWidget *build_project_card(Project *p, int idx) {
     GtkWidget *frame = gtk_frame_new(NULL);
     gtk_widget_set_name(frame, "project-card");
@@ -138,7 +229,7 @@ static GtkWidget *build_project_card(Project *p, int idx) {
     gtk_box_pack_start(GTK_BOX(vbox), hdr, FALSE, FALSE, 0);
 
     /* Branch */
-    char cmd[600];
+    char cmd[700];
     snprintf(cmd, sizeof(cmd), "git -C '%s' rev-parse --abbrev-ref HEAD 2>/dev/null", p->path);
     char *branch = run_cmd(cmd);
     trim_inplace(branch);
@@ -181,13 +272,98 @@ static GtkWidget *build_project_card(Project *p, int idx) {
         p->name, branch, dot_color, status_text, changes_info);
     gtk_box_pack_start(GTK_BOX(hdr), make_label(header), TRUE, TRUE, 0);
     free(header);
-    free(branch);
 
     GtkWidget *rm_btn = gtk_button_new_with_label("Remove");
     gtk_widget_set_name(rm_btn, "remove-btn");
     g_signal_connect(rm_btn, "clicked", G_CALLBACK(on_remove_clicked),
                      GINT_TO_POINTER(idx));
     gtk_box_pack_end(GTK_BOX(hdr), rm_btn, FALSE, FALSE, 0);
+
+    /* Info row: ahead/behind, stash count, latest tag */
+    GString *info = g_string_new("<span font='10' foreground='" CAT_OVERLAY2 "'>");
+
+    /* Ahead/behind */
+    snprintf(cmd, sizeof(cmd),
+        "git -C '%s' rev-list --left-right --count HEAD...@{upstream} 2>/dev/null", p->path);
+    char *ab = run_cmd(cmd);
+    trim_inplace(ab);
+    if (ab && ab[0]) {
+        int ahead = 0, behind = 0;
+        if (sscanf(ab, "%d\t%d", &ahead, &behind) == 2 && (ahead || behind)) {
+            if (ahead > 0)
+                g_string_append_printf(info,
+                    "<span foreground='" CAT_GREEN "'>↑%d</span>", ahead);
+            if (ahead > 0 && behind > 0)
+                g_string_append(info, " ");
+            if (behind > 0)
+                g_string_append_printf(info,
+                    "<span foreground='" CAT_RED "'>↓%d</span>", behind);
+            g_string_append(info, "  ");
+        }
+    }
+    free(ab);
+
+    /* Stash count */
+    snprintf(cmd, sizeof(cmd), "git -C '%s' stash list 2>/dev/null | wc -l", p->path);
+    char *stash_str = run_cmd(cmd);
+    trim_inplace(stash_str);
+    int stashes = stash_str ? atoi(stash_str) : 0;
+    free(stash_str);
+    if (stashes > 0)
+        g_string_append_printf(info, "%d stash%s  ", stashes, stashes == 1 ? "" : "es");
+
+    /* Latest tag */
+    snprintf(cmd, sizeof(cmd),
+        "git -C '%s' describe --tags --abbrev=0 2>/dev/null", p->path);
+    char *tag = run_cmd(cmd);
+    trim_inplace(tag);
+    if (tag && tag[0]) {
+        char *esc = g_markup_escape_text(tag, -1);
+        g_string_append_printf(info,
+            "<span foreground='" CAT_MAUVE "'>%s</span>  ", esc);
+        g_free(esc);
+    }
+    free(tag);
+
+    g_string_append(info, "</span>");
+    /* Only show info row if it has content beyond the empty span tags */
+    if (info->len > 80) {
+        gtk_box_pack_start(GTK_BOX(vbox), make_label(info->str), FALSE, FALSE, 0);
+    }
+    g_string_free(info, TRUE);
+
+    /* Branch list */
+    snprintf(cmd, sizeof(cmd),
+        "git -C '%s' branch --format='%%(refname:short)' 2>/dev/null", p->path);
+    char *branches = run_cmd(cmd);
+    if (branches && branches[0]) {
+        GString *bstr = g_string_new(
+            "<span font='10' foreground='" CAT_OVERLAY1 "'>  branches: </span>"
+            "<span font='10' foreground='" CAT_SUBTEXT0 "'>");
+        char *b = strtok(branches, "\n");
+        int count = 0;
+        while (b && count < 8) {
+            trim_inplace(b);
+            if (!b[0]) { b = strtok(NULL, "\n"); continue; }
+            if (count > 0) g_string_append(bstr, ", ");
+            char *esc = g_markup_escape_text(b, -1);
+            /* Highlight current branch */
+            if (strcmp(b, branch) == 0)
+                g_string_append_printf(bstr,
+                    "<span foreground='" CAT_BLUE "' weight='bold'>%s</span>", esc);
+            else
+                g_string_append(bstr, esc);
+            g_free(esc);
+            count++;
+            b = strtok(NULL, "\n");
+        }
+        if (b) g_string_append(bstr, ", ...");
+        g_string_append(bstr, "</span>");
+        gtk_box_pack_start(GTK_BOX(vbox), make_label(bstr->str), FALSE, FALSE, 0);
+        g_string_free(bstr, TRUE);
+    }
+    free(branches);
+    free(branch);
 
     /* Recent commits */
     snprintf(cmd, sizeof(cmd),
@@ -196,7 +372,6 @@ static GtkWidget *build_project_card(Project *p, int idx) {
     if (log && log[0]) {
         char *line = strtok(log, "\n");
         while (line) {
-            /* Escape markup characters */
             char *escaped = g_markup_escape_text(line, -1);
             char *m = markup_fmt(
                 "<span font='10' foreground='" CAT_SUBTEXT0 "'>  %s</span>", escaped);
@@ -208,11 +383,36 @@ static GtkWidget *build_project_card(Project *p, int idx) {
     }
     free(log);
 
+    /* Action buttons row */
+    GtkWidget *actions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_widget_set_margin_top(actions, 4);
+    gtk_box_pack_start(GTK_BOX(vbox), actions, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(actions),
+        make_card_btn("Pull", "card-btn", p->path, G_CALLBACK(on_pull_clicked)),
+        FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(actions),
+        make_card_btn("Push", "card-btn", p->path, G_CALLBACK(on_push_clicked)),
+        FALSE, FALSE, 0);
+
+    if (s_editor[0]) {
+        char editor_label[192];
+        snprintf(editor_label, sizeof(editor_label), "Open in %s", s_editor);
+        gtk_box_pack_start(GTK_BOX(actions),
+            make_card_btn(editor_label, "card-btn", p->path,
+                          G_CALLBACK(on_editor_clicked)),
+            FALSE, FALSE, 0);
+    }
+
+    gtk_box_pack_start(GTK_BOX(actions),
+        make_card_btn("Terminal", "card-btn", p->path,
+                      G_CALLBACK(on_terminal_clicked)),
+        FALSE, FALSE, 0);
+
     return frame;
 }
 
 static void do_refresh(void) {
-    /* Clear container */
     GList *children = gtk_container_get_children(GTK_CONTAINER(s_container));
     for (GList *l = children; l; l = l->next)
         gtk_widget_destroy(l->data);
@@ -227,6 +427,7 @@ static void do_refresh(void) {
 
 GtkWidget *gitdash_create(void) {
     load_config();
+    detect_editor();
 
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
