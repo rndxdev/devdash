@@ -95,8 +95,18 @@ GtkWidget *shell_create(void) {
         gdk_rgba_parse(&palette[i], colors[i]);
     vte_terminal_set_colors(s_terminal, &fg, &bg, palette, 16);
 
+    /* Prefer a Nerd Font so Powerline/oh-my-posh glyphs (Unicode PUA,
+     * e.g. U+EBA9) render as icons instead of raw codepoints. Pango
+     * accepts a comma-separated family list and falls through to the
+     * next family when a glyph is missing. */
     vte_terminal_set_font(s_terminal,
-        pango_font_description_from_string("Monospace 12"));
+        pango_font_description_from_string(
+            "JetBrainsMono Nerd Font,"
+            "FiraCode Nerd Font,"
+            "MesloLGS Nerd Font,"
+            "Hack Nerd Font,"
+            "Symbols Nerd Font,"
+            "Monospace 12"));
     vte_terminal_set_scrollback_lines(s_terminal, 10000);
     vte_terminal_set_cursor_blink_mode(s_terminal, VTE_CURSOR_BLINK_ON);
     vte_terminal_set_mouse_autohide(s_terminal, TRUE);
