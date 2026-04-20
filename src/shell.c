@@ -9,6 +9,22 @@
 static VteTerminal *s_terminal;
 static GPid s_child_pid;
 
+static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+    (void)widget; (void)data;
+    guint mods = event->state & gtk_accelerator_get_default_mod_mask();
+    if (mods == (GDK_CONTROL_MASK | GDK_SHIFT_MASK)) {
+        switch (event->keyval) {
+            case GDK_KEY_C: case GDK_KEY_c:
+                vte_terminal_copy_clipboard_format(s_terminal, VTE_FORMAT_TEXT);
+                return TRUE;
+            case GDK_KEY_V: case GDK_KEY_v:
+                vte_terminal_paste_clipboard(s_terminal);
+                return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 static void on_child_exited(VteTerminal *term, gint status, gpointer data) {
     (void)status; (void)data;
 
@@ -140,6 +156,7 @@ GtkWidget *shell_create(void) {
     g_strfreev(envp);
 
     g_signal_connect(term, "child-exited", G_CALLBACK(on_child_exited), NULL);
+    g_signal_connect(term, "key-press-event", G_CALLBACK(on_key_press), NULL);
 
     GtkWidget *sw = make_scrolled(term);
     gtk_box_pack_start(GTK_BOX(vbox), sw, TRUE, TRUE, 0);
